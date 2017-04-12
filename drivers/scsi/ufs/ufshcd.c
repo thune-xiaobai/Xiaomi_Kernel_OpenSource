@@ -4,6 +4,7 @@
  * This code is based on drivers/scsi/ufs/ufshcd.c
  * Copyright (C) 2011-2013 Samsung India Software Operations
  * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2017 XiaoMi, Inc.
  *
  * Authors:
  *	Santosh Yaraganavi <santosh.sy@samsung.com>
@@ -14,7 +15,7 @@
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  * See the COPYING file in the top-level directory or visit
- * <http://www.gnu.org/licenses/gpl-2.0.html>
+ * <http:
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -3991,13 +3992,18 @@ static int ufshcd_link_recovery(struct ufs_hba *hba)
 	do {
 		spin_lock_irqsave(hba->host->host_lock, flags);
 		if (!(work_pending(&hba->eh_work) ||
+<<<<<<< HEAD
 				hba->ufshcd_state == UFSHCD_STATE_RESET))
+=======
+						hba->ufshcd_state == UFSHCD_STATE_RESET))
+>>>>>>> 2bc1b068f6a1... scsi
 			break;
 		spin_unlock_irqrestore(hba->host->host_lock, flags);
 		dev_dbg(hba->dev, "%s: reset in progress\n", __func__);
 		flush_work(&hba->eh_work);
 	} while (1);
 
+<<<<<<< HEAD
 
 	/*
 	 * we don't know if previous reset had really reset the host controller
@@ -4023,6 +4029,32 @@ static int ufshcd_link_recovery(struct ufs_hba *hba)
 		ret = -ENOLINK;
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
+=======
+	/*
+	 * we don't know if previous reset had really reset the host controller
+	 * or not. So let's force reset here to be sure.
+	 */
+	hba->ufshcd_state = UFSHCD_STATE_ERROR;
+	hba->force_host_reset = true;
+	schedule_work(&hba->eh_work);
+
+	/* wait for the reset work to finish */
+	do {
+		if (!(work_pending(&hba->eh_work) ||
+						hba->ufshcd_state == UFSHCD_STATE_RESET))
+			break;
+		spin_unlock_irqrestore(hba->host->host_lock, flags);
+		dev_dbg(hba->dev, "%s: reset in progress\n", __func__);
+		flush_work(&hba->eh_work);
+		spin_lock_irqsave(hba->host->host_lock, flags);
+	} while (1);
+
+	if (!((hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) &&
+			ufshcd_is_link_active(hba)))
+		ret = -ENOLINK;
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+
+>>>>>>> 2bc1b068f6a1... scsi
 	return ret;
 }
 
@@ -5616,7 +5648,11 @@ static void ufshcd_err_handler(struct work_struct *work)
 	}
 
 	if ((hba->saved_err & INT_FATAL_ERRORS)
+<<<<<<< HEAD
 	    || hba->saved_ce_err || hba->force_host_reset ||
+=======
+		|| hba->saved_ce_err || hba->force_host_reset ||
+>>>>>>> 2bc1b068f6a1... scsi
 	    ((hba->saved_err & UIC_ERROR) &&
 	    (hba->saved_uic_err & (UFSHCD_UIC_DL_PA_INIT_ERROR |
 				   UFSHCD_UIC_DL_NAC_RECEIVED_ERROR |
@@ -6330,7 +6366,11 @@ static int ufshcd_reset_and_restore(struct ufs_hba *hba)
 		err = ufshcd_vops_full_reset(hba);
 		if (err)
 			dev_warn(hba->dev, "%s: full reset returned %d\n",
+<<<<<<< HEAD
 				 __func__, err);
+=======
+					__func__, err);
+>>>>>>> 2bc1b068f6a1... scsi
 
 		err = ufshcd_host_reset_and_restore(hba);
 	} while (err && --retries);
@@ -6388,7 +6428,11 @@ static int ufshcd_eh_host_reset_handler(struct scsi_cmnd *cmd)
 	/* wait for the reset work to finish */
 	do {
 		if (!(work_pending(&hba->eh_work) ||
+<<<<<<< HEAD
 				hba->ufshcd_state == UFSHCD_STATE_RESET))
+=======
+						hba->ufshcd_state == UFSHCD_STATE_RESET))
+>>>>>>> 2bc1b068f6a1... scsi
 			break;
 		spin_unlock_irqrestore(hba->host->host_lock, flags);
 		dev_err(hba->dev, "%s: reset in progress - 2\n", __func__);
@@ -6397,11 +6441,18 @@ static int ufshcd_eh_host_reset_handler(struct scsi_cmnd *cmd)
 	} while (1);
 
 	if (!((hba->ufshcd_state == UFSHCD_STATE_OPERATIONAL) &&
+<<<<<<< HEAD
 	      ufshcd_is_link_active(hba))) {
 		err = FAILED;
 		hba->ufshcd_state = UFSHCD_STATE_ERROR;
 	}
 
+=======
+					+ ufshcd_is_link_active(hba))) {
+		err = FAILED;
+		hba->ufshcd_state = UFSHCD_STATE_ERROR;
+	}
+>>>>>>> 2bc1b068f6a1... scsi
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
 	return err;
