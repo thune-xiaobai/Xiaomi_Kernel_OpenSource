@@ -2285,7 +2285,7 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 			(char *)(req.app_name));
 		spin_lock_irqsave(&qseecom.registered_app_list_lock, flags);
 		list_for_each_entry(entry,
-		&qseecom.registered_app_list_head, list){
+		&qseecom.registered_app_list_head, list) {
 			if (entry->app_id == app_id) {
 				entry->ref_cnt++;
 				break;
@@ -2666,6 +2666,36 @@ int __qseecom_process_fsm_key_svc_cmd(struct qseecom_dev_handle *data_ptr,
 	if ((req_ptr == NULL) || (send_svc_ireq_ptr == NULL)) {
 		pr_err("Error with pointer: req_ptr = %pK, send_svc_ptr = %pK\n",
 			req_ptr, send_svc_ireq_ptr);
+		return -EINVAL;
+	}
+
+	if (((uintptr_t)req_ptr->cmd_req_buf <
+			data_ptr->client.user_virt_sb_base) ||
+		((uintptr_t)req_ptr->cmd_req_buf >=
+			(data_ptr->client.user_virt_sb_base +
+			data_ptr->client.sb_length))) {
+		pr_err("cmd buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+	if (((uintptr_t)req_ptr->resp_buf <
+			data_ptr->client.user_virt_sb_base) ||
+		((uintptr_t)req_ptr->resp_buf >=
+			(data_ptr->client.user_virt_sb_base +
+			data_ptr->client.sb_length))) {
+		pr_err("response buffer address not within shared bufffer\n");
+		return -EINVAL;
+	}
+
+	if ((req_ptr->cmd_req_len == 0) || (req_ptr->resp_len == 0) ||
+		req_ptr->cmd_req_len > data_ptr->client.sb_length ||
+		req_ptr->resp_len > data_ptr->client.sb_length) {
+		pr_err("cmd buffer length or response buffer length not valid\n");
+		return -EINVAL;
+	}
+
+	if (req_ptr->cmd_req_len > UINT_MAX - req_ptr->resp_len) {
+		pr_err("Integer overflow detected in req_len & rsp_len, exiting now\n");
 		return -EINVAL;
 	}
 
@@ -3080,7 +3110,7 @@ static int __qseecom_send_cmd(struct qseecom_dev_handle *data,
 			((send_data_req_64bit.req_ptr >=
 				PHY_ADDR_4G - send_data_req_64bit.req_len) ||
 			(send_data_req_64bit.rsp_ptr >=
-				PHY_ADDR_4G - send_data_req_64bit.rsp_len))){
+				PHY_ADDR_4G - send_data_req_64bit.rsp_len))) {
 			pr_err("32bit app %s PA exceeds 4G: req_ptr=%llx, req_len=%x, rsp_ptr=%llx, rsp_len=%x\n",
 				data->client.app_name,
 				send_data_req_64bit.req_ptr,
@@ -4389,7 +4419,7 @@ int qseecom_start_app(struct qseecom_handle **handle,
 			(char *)app_ireq.app_name);
 		spin_lock_irqsave(&qseecom.registered_app_list_lock, flags);
 		list_for_each_entry(entry,
-				&qseecom.registered_app_list_head, list){
+				&qseecom.registered_app_list_head, list) {
 			if (entry->app_id == ret) {
 				entry->ref_cnt++;
 				found_app = true;
@@ -4716,12 +4746,11 @@ static int __validate_send_modfd_resp_inputs(struct qseecom_dev_handle *data,
 			return -EINVAL;
 		}
 	}
-
 	return 0;
 }
 
 static int __qseecom_send_modfd_resp(struct qseecom_dev_handle *data,
-				void __user *argp, bool is_64bit_addr)
+			void __user *argp, bool is_64bit_addr)
 {
 	struct qseecom_send_modfd_listener_resp resp;
 	struct qseecom_registered_listener_list *this_lstnr = NULL;
@@ -4730,7 +4759,6 @@ static int __qseecom_send_modfd_resp(struct qseecom_dev_handle *data,
 		pr_err("copy_from_user failed");
 		return -EINVAL;
 	}
-
 	this_lstnr = __qseecom_find_svc(data->listener.id);
 	if (this_lstnr == NULL)
 		return -EINVAL;
@@ -5245,7 +5273,7 @@ static int qseecom_query_app_loaded(struct qseecom_dev_handle *data,
 			(char *)(req.app_name));
 		spin_lock_irqsave(&qseecom.registered_app_list_lock, flags);
 		list_for_each_entry(entry,
-				&qseecom.registered_app_list_head, list){
+				&qseecom.registered_app_list_head, list) {
 			if (entry->app_id == ret) {
 				app_arch = entry->app_arch;
 				entry->ref_cnt++;
@@ -6471,7 +6499,7 @@ static int __qseecom_qteec_issue_cmd(struct qseecom_dev_handle *data,
 			((ireq_64bit.req_ptr >=
 				PHY_ADDR_4G - ireq_64bit.req_len) ||
 			(ireq_64bit.resp_ptr >=
-				PHY_ADDR_4G - ireq_64bit.resp_len))){
+				PHY_ADDR_4G - ireq_64bit.resp_len))) {
 			pr_err("32bit app %s (id: %d): phy_addr exceeds 4G\n",
 				data->client.app_name, data->client.app_id);
 			pr_err("req_ptr:%llx,req_len:%x,rsp_ptr:%llx,rsp_len:%x\n",
