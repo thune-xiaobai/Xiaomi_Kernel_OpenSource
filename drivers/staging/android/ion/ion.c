@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2011 Google, Inc.
  * Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2017 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -798,7 +799,7 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 	}
 
 	cnode = rb_first(&ion_dev->clients);
-	for ( ; cnode; cnode = rb_next(cnode)) {
+	for (; cnode; cnode = rb_next(cnode)) {
 		struct ion_client *c = rb_entry(cnode,
 				struct ion_client, node);
 		if (client == c) {
