@@ -2,6 +2,7 @@
  * zbud.c
  *
  * Copyright (C) 2013, Seth Jennings, IBM
+ * Copyright (C) 2017 XiaoMi, Inc.
  *
  * Concepts based on zcache internal zbud allocator by Dan Magenheimer.
  *
@@ -344,6 +345,7 @@ int zbud_alloc(struct zbud_pool *pool, size_t size, gfp_t gfp,
 	struct page *page;
 	unsigned long flags;
 	int found = 0;
+	unsigned long flags;
 
 	if (!size || (gfp & __GFP_HIGHMEM))
 		return -EINVAL;
@@ -498,6 +500,7 @@ int zbud_reclaim_page(struct zbud_pool *pool, unsigned int retries)
 	struct zbud_header *zhdr;
 	unsigned long flags;
 	unsigned long first_handle = 0, last_handle = 0;
+	unsigned long flags;
 
 	spin_lock_irqsave(&pool->lock, flags);
 	if (!pool->ops || !pool->ops->evict || list_empty(&pool->lru) ||
