@@ -17,6 +17,7 @@
 
 #define HANDLE_TO_IDX(handle) (handle & 0xFF)
 #define ISP_SOF_DEBUG_COUNT 0
+
 static int msm_isp_update_dual_HW_ms_info_at_start(
 	struct vfe_device *vfe_dev,
 	enum msm_vfe_input_src stream_src,
@@ -2211,10 +2212,9 @@ static void msm_isp_update_camif_output_count(
 /*Factor in Q2 format*/
 #define ISP_DEFAULT_FORMAT_FACTOR 6
 #define ISP_BUS_UTILIZATION_FACTOR 6
-int msm_isp_update_stream_bandwidth(struct vfe_device *vfe_dev,
-	enum msm_vfe_hw_state hw_state)
+static int msm_isp_update_stream_bandwidth(struct vfe_device *vfe_dev)
 {
-	int i, rc = 0, frame_src, ms_type;
+	int i, rc = 0;
 	struct msm_vfe_axi_stream *stream_info;
 	struct msm_vfe_axi_shared_data *axi_data = &vfe_dev->axi_data;
 	uint64_t total_pix_bandwidth = 0, total_rdi_bandwidth = 0;
@@ -2223,15 +2223,6 @@ int msm_isp_update_stream_bandwidth(struct vfe_device *vfe_dev,
 
 	for (i = 0; i < VFE_AXI_SRC_MAX; i++) {
 		stream_info = &axi_data->stream_info[i];
-		frame_src = SRC_TO_INTF(stream_info->stream_src);
-		ms_type = vfe_dev->axi_data.src_info[frame_src].
-			dual_hw_ms_info.dual_hw_ms_type;
-		if (hw_state == HW_STATE_SLEEP) {
-			rc = msm_isp_update_bandwidth(
-				ISP_VFE0 + vfe_dev->pdev->id, 0, 0);
-			return rc;
-		}
-
 		if (stream_info->state == ACTIVE ||
 			stream_info->state == START_PENDING) {
 			if (stream_info->stream_src < RDI_INTF_0) {
@@ -2242,11 +2233,11 @@ int msm_isp_update_stream_bandwidth(struct vfe_device *vfe_dev,
 			}
 		}
 	}
-
 	total_bandwidth = total_pix_bandwidth + total_rdi_bandwidth;
-		rc = msm_isp_update_bandwidth(ISP_VFE0 + vfe_dev->pdev->id,
-			(total_bandwidth + vfe_dev->hw_info->min_ab),
-			(total_bandwidth + vfe_dev->hw_info->min_ib));
+	rc = msm_isp_update_bandwidth(ISP_VFE0 + vfe_dev->pdev->id,
+		(total_bandwidth + vfe_dev->hw_info->min_ab),
+		(total_bandwidth + vfe_dev->hw_info->min_ib));
+
 	if (rc < 0)
 		pr_err("%s: update failed\n", __func__);
 
@@ -2848,7 +2839,7 @@ static int msm_isp_start_axi_stream(struct vfe_device *vfe_dev,
 			}
 		}
 	}
-	msm_isp_update_stream_bandwidth(vfe_dev, stream_cfg_cmd->hw_state);
+	msm_isp_update_stream_bandwidth(vfe_dev);
 	vfe_dev->hw_info->vfe_ops.axi_ops.reload_wm(vfe_dev,
 		vfe_dev->vfe_base, wm_reload_mask);
 	msm_isp_update_camif_output_count(vfe_dev, stream_cfg_cmd);
@@ -2969,6 +2960,8 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 			if (intf >= VFE_RAW_0 &&
 				intf < VFE_SRC_MAX) {
 				vfe_dev->axi_data.src_info[intf].active = 0;
+				vfe_dev->axi_data.src_info[intf].flag = 0;
+
 			}
 		} else
 			src_mask |= (1 << intf);
@@ -3013,6 +3006,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 		for (i = VFE_RAW_0; i < VFE_SRC_MAX; i++) {
 			if (src_mask & (1 << i)) {
 				vfe_dev->axi_data.src_info[i].active = 0;
+				vfe_dev->axi_data.src_info[i].flag = 0;
 			}
 		}
 	}
@@ -3037,7 +3031,7 @@ static int msm_isp_stop_axi_stream(struct vfe_device *vfe_dev,
 	}
 
 	msm_isp_update_camif_output_count(vfe_dev, stream_cfg_cmd);
-	msm_isp_update_stream_bandwidth(vfe_dev, stream_cfg_cmd->hw_state);
+	msm_isp_update_stream_bandwidth(vfe_dev);
 
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
 		stream_info = &axi_data->stream_info[
@@ -3700,6 +3694,11 @@ int msm_isp_update_axi_stream(struct vfe_device *vfe_dev, void *arg)
 	case UPDATE_STREAM_REQUEST_FRAMES_VER2: {
 		struct msm_vfe_axi_stream_cfg_update_info_req_frm *req_frm =
 			&update_cmd->req_frm_ver2;
+		if (HANDLE_TO_IDX(req_frm->stream_handle) >= VFE_AXI_SRC_MAX) {
+			pr_err("%s: Invalid stream handle\n", __func__);
+			rc = -EINVAL;
+			break;
+		}
 		stream_info = &axi_data->stream_info[HANDLE_TO_IDX(
 				req_frm->stream_handle)];
 		rc = msm_isp_request_frame(vfe_dev, stream_info,

@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1514,6 +1514,7 @@ void msm_vfe47_update_camif_state(struct vfe_device *vfe_dev,
 		msm_camera_io_w_mb((update_state == DISABLE_CAMIF ? 0x0 : 0x6),
 				vfe_dev->vfe_base + 0x478);
 		vfe_dev->axi_data.src_info[VFE_PIX_0].active = 0;
+		vfe_dev->axi_data.src_info[VFE_PIX_0].flag = 0;
 		/* testgen OFF*/
 		if (vfe_dev->axi_data.src_info[VFE_PIX_0].input_mux == TESTGEN)
 			msm_camera_io_w(1 << 1, vfe_dev->vfe_base + 0xC58);
@@ -1685,8 +1686,6 @@ void msm_vfe47_cfg_axi_ub_equal_default(
 	uint32_t wm_ub_size;
 	uint64_t delta;
 	uint32_t rdi_ub_offset;
-	int plane;
-	struct msm_vfe_axi_stream *stream_info;
 
 	if (frame_src == VFE_PIX_0) {
 		for (i = 0; i < axi_data->hw_info->num_wm; i++) {
@@ -1713,7 +1712,7 @@ void msm_vfe47_cfg_axi_ub_equal_default(
 				vfe_dev->hw_info->vfe_ops.axi_ops.
 					ub_reg_offset(vfe_dev, i));
 		}
-		if (frame_src != SRC_TO_INTF(
+		if (!axi_data->free_wm[i] || frame_src != SRC_TO_INTF(
 				HANDLE_TO_IDX(axi_data->free_wm[i])))
 			continue;
 
@@ -1730,17 +1729,9 @@ void msm_vfe47_cfg_axi_ub_equal_default(
 			ub_offset += wm_ub_size;
 		} else {
 
-			stream_info =  &axi_data->stream_info[
-				HANDLE_TO_IDX(axi_data->free_wm[i])];
-			for (plane = 0; plane < stream_info->num_planes;
-					plane++)
-				if (stream_info->wm[plane] ==
-					axi_data->free_wm[i])
-					break;
-
-			rdi_ub_offset = ((SRC_TO_INTF(
+			rdi_ub_offset = (SRC_TO_INTF(
 					HANDLE_TO_IDX(axi_data->free_wm[i])) -
-					VFE_RAW_0 * 2) + plane) *
+					VFE_RAW_0) * 2 *
 					axi_data->hw_info->min_wm_ub;
 			wm_ub_size = axi_data->hw_info->min_wm_ub * 2;
 			msm_camera_io_w((rdi_ub_offset << 16 |
@@ -2584,8 +2575,6 @@ int msm_vfe47_enable_regulators(struct vfe_device *vfe_dev, int enable)
 int msm_vfe47_get_platform_data(struct vfe_device *vfe_dev)
 {
 	int rc = 0;
-	void __iomem *vfe_fuse_base;
-	uint32_t vfe_fuse_base_size;
 
 	vfe_dev->vfe_base = msm_camera_get_reg_base(vfe_dev->pdev, "vfe", 0);
 	if (!vfe_dev->vfe_base)
@@ -2610,18 +2599,7 @@ int msm_vfe47_get_platform_data(struct vfe_device *vfe_dev)
 		rc = -ENOMEM;
 		goto get_res_fail;
 	}
-	vfe_dev->vfe_hw_limit = 0;
-	vfe_fuse_base = msm_camera_get_reg_base(vfe_dev->pdev,
-					"vfe_fuse", 0);
-	vfe_fuse_base_size = msm_camera_get_res_size(vfe_dev->pdev,
-						"vfe_fuse");
-	if (vfe_fuse_base) {
-		if (vfe_fuse_base_size)
-			vfe_dev->vfe_hw_limit =
-				(msm_camera_io_r(vfe_fuse_base) >> 7) & 0x3;
-		msm_camera_put_reg_base(vfe_dev->pdev, vfe_fuse_base,
-				"vfe_fuse", 0);
-	}
+
 	rc = vfe_dev->hw_info->vfe_ops.platform_ops.get_regulators(vfe_dev);
 	if (rc)
 		goto get_regulator_fail;
